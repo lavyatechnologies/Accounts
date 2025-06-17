@@ -1,4 +1,5 @@
-
+const fs = require("fs");
+const path = require("path");
 // fileName : server.js 
 // Example using the http module
 const http = require('http');
@@ -32,12 +33,10 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const connection = mysql.createConnection({
-    host: '103.21.58.4',          // MySQL server address
-    user: 'saralaccountsuser',               // MySQL username
-    password: 'saral@accounts',
-    port:3306,
-    // MySQL password (if any)
-    database: 'saralaccounts_db', 
+    host: 'localhost',          // MySQL server address
+    user: 'root',               // MySQL username
+    password: '3307',               // MySQL password (if any)
+    database: 'saralaccountsdb', 
       multipleStatements: true   // Your database name
   });
   
@@ -51,7 +50,42 @@ const connection = mysql.createConnection({
   });
 
 
- 
+// Create folder if it doesn't exist
+const qrFolder = path.join(__dirname, "uploadsQR");
+if (!fs.existsSync(qrFolder)) {
+  fs.mkdirSync(qrFolder, { recursive: true });
+}
+
+// Middleware to serve QR folder as static
+app.use("/uploadsQR", express.static(qrFolder));
+
+// Route to save QR Code
+app.post("/uploadQR", (req, res) => {
+  const { loginID, qrImage } = req.body;
+
+  if (!loginID || !qrImage) {
+    return res.status(400).json({ error: "Missing loginID or qrImage" });
+  }
+
+  const base64Data = qrImage.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+  const fileName = `${loginID}.jpg`;
+  const filePath = path.join(qrFolder, fileName);
+
+  fs.writeFile(filePath, base64Data, "base64", (err) => {
+    if (err) {
+      console.error("Error saving QR image:", err);
+      return res.status(500).json({ error: "Failed to save QR image" });
+    }
+
+    res.json({
+      message: "QR image saved successfully",
+      filename: fileName,
+      path: `/uploadsQR/${fileName}`,
+    });
+  });
+});
+
+
 
 
 
@@ -170,6 +204,30 @@ app.post("/insertLogin", (req, res) => {
   );
 });
 
+
+app.delete("/deleteQR/:loginID", (req, res) => {
+  const loginID = req.params.loginID;
+  if (!loginID) {
+    return res.status(400).json({ error: "loginID is required" });
+  }
+
+  const filePath = path.join(qrFolder, `${loginID}.jpg`);
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      return res.status(404).json({ error: "QR image not found" });
+    }
+
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        console.error("Error deleting QR image:", err);
+        return res.status(500).json({ error: "Failed to delete QR image" });
+      }
+
+      res.json({ message: "QR image deleted successfully" });
+    });
+  });
+});
 
   app.get("/customers/:loginID", (req, res) => {
     const loginID = req.params.loginID;
@@ -570,6 +628,78 @@ app.post('/postInterest', (req, res) => {
   });
 });
 
+// Get firm details by login ID
+app.get('/getFirmDetails/:loginID', (req, res) => {
+  const { loginID } = req.params;
+
+  if (!loginID || loginID.trim() === '') {
+    return res.status(400).json({ error: 'LoginID is required and cannot be blank' });
+  }
+
+  const sql = 'CALL GetFirmDetailsByLoginID(?)';
+
+  connection.query(sql, [loginID], (err, results) => {
+    if (err) {
+      console.error('Error executing stored procedure:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Assuming the procedure returns one row of firm details
+    const firmDetails = results?.[0]?.[0];
+
+    if (!firmDetails) {
+      return res.status(404).json({ error: 'Firm details not found for the given LoginID' });
+    }
+
+    res.json(firmDetails);
+  });
+});
+
+app.put('/updateFirmDetails/:loginID', (req, res) => {
+  const { loginID } = req.params;
+  const {
+    BusinessName,
+    PhoneNumber,
+    ValidityDate,
+    InterestEnable,
+    PaymentReminder,
+    UPI,
+  } = req.body;
+
+  if (!BusinessName || !PhoneNumber || !ValidityDate) {
+    return res.status(400).json({ error: 'Required fields cannot be null.' });
+  }
+
+  const sql = 'CALL UpdateFirmDetailsByLoginID(?, ?, ?, ?, ?, ?, ?)';
+  const values = [loginID, BusinessName, PhoneNumber, ValidityDate, InterestEnable, PaymentReminder, UPI];
+
+  connection.query(sql, values, (err, results) => {
+    if (err) {
+      console.error('Error executing procedure:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // ✅ Delete QR image if UPI is empty or null
+    if (!UPI || UPI.trim() === "") {
+      const qrPath = path.join(__dirname, 'uploadsQR', `${loginID}.jpg`);
+      
+      fs.access(qrPath, fs.constants.F_OK, (err) => {
+        if (!err) {
+          fs.unlink(qrPath, (err) => {
+            if (err) {
+              console.error('Error deleting QR image:', err);
+            } else {
+              console.log(`QR image deleted for loginID ${loginID}`);
+            }
+          });
+        }
+      });
+    }
+
+    res.json({ message: 'Firm details updated successfully' });
+  });
+});
+
 
 
 app.get('/getWaStatus/:loginID', (req, res) => {
@@ -660,6 +790,7 @@ app.post("/insertAdminLogin", (req, res) => {
     WA_enabled,
     InterestEnable,
     PaymentReminder, // ✅ added
+    bankDetails,
   } = req.body;
 
   if (
@@ -676,7 +807,7 @@ app.post("/insertAdminLogin", (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?)"; // ✅ updated
+  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?,?)"; // ✅ updated
 
   connection.query(
     sql,
@@ -690,6 +821,7 @@ app.post("/insertAdminLogin", (req, res) => {
       WA_enabled,
       InterestEnable,
       PaymentReminder, // ✅ added
+      bankDetails, // ✅ added
     ],
     (err, result) => {
       if (err) {
@@ -741,17 +873,19 @@ app.put("/updateAdmin/:id", (req, res) => {
     WA_API,
     WA_enabled,
     InterestEnable,
-    Payment_reminder
+    Payment_reminder,
+    UPI,
+     bankDetails,
   } = req.body;
 
    if (!phoneNumber || phoneNumber.trim() === '' || !password || password.trim() === '') {
     return res.status(400).json({ error: "Phone number and password cannot be blank" });
   }
 
-  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?)";
+  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)";
   connection.query(
     sql,
-    [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder],
+    [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder,UPI, bankDetails],
     (err, results) => {
       if (err) {
         console.error("Update admin error:", err);
