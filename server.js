@@ -33,10 +33,11 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const connection = mysql.createConnection({
-    host: 'localhost',          // MySQL server address
-    user: 'root',               // MySQL username
-    password: '3307',               // MySQL password (if any)
-    database: 'saralaccountsdb', 
+    host: '103.21.58.4',          // MySQL server address
+    user: 'saralaccountsuser',               // MySQL username
+    password: 'saral@accounts',               // MySQL password (if any)
+    database: 'saralaccounts_db', 
+    port:3306,
       multipleStatements: true   // Your database name
   });
   
