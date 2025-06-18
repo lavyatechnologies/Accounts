@@ -31,25 +31,40 @@ const server = http.createServer((req, res) => {
     res.end();
 });
 
-// MySQL Database connection setup
-const connection = mysql.createConnection({
-    host: '103.21.58.4',          // MySQL server address
-    user: 'saralaccountsuser',               // MySQL username
-    password: 'saral@accounts',               // MySQL password (if any)
-    database: 'saralaccounts_db', 
-    port:3306,
-      multipleStatements: true   // Your database name
-  });
-  
-  // Check connection to MySQL
- connection.connect(err => {
-    if (err) {
-      console.error('Error connecting to the database:', err.stack);
-      return;
-    }
-    console.log('Connected to MySQL database.');
+let connection;
+
+function handleDisconnect() {
+  connection = mysql.createConnection({
+    host: '103.21.58.4',
+    user: 'saralaccountsuser',
+    password: 'saral@accounts',
+    database: 'saralaccounts_db',
+    port: 3306,
+    multipleStatements: true
   });
 
+  connection.connect((err) => {
+    if (err) {
+      console.error('Error connecting to the database:', err.stack);
+      setTimeout(handleDisconnect, 2000); // Retry after 2 seconds
+    } else {
+      console.log('Connected to MySQL database.');
+    }
+  });
+
+  connection.on('error', (err) => {
+    console.error('Database error:', err);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.fatal) {
+      console.log('Reconnecting to the database...');
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+}
+
+// First time call
+handleDisconnect();
 
 // Create folder if it doesn't exist
 const qrFolder = path.join(__dirname, "uploadsQR");
