@@ -51,7 +51,8 @@ function handleDisconnect() {
     }
     console.log('Connected to MySQL database.');
   });
-
+}
+handleDisconnect();
 
 // Create folder if it doesn't exist
 const qrFolder = path.join(__dirname, "uploadsQR");
