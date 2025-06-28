@@ -31,40 +31,24 @@ const server = http.createServer((req, res) => {
     res.end();
 });
 
-let connection;
-
-function handleDisconnect() {
-  connection = mysql.createConnection({
-    host: '103.21.58.4',
-    user: 'saralaccountsuser',
-    password: 'saral@accounts',
-    database: 'saralaccounts_db',
-    port: 3306,
-    multipleStatements: true
+// MySQL Database connection setup
+const connection = mysql.createConnection({
+    host: 'localhost',          // MySQL server address
+    user: 'root',               // MySQL username
+    password: '3307',               // MySQL password (if any)
+    database: 'saralaccountsdb', 
+      multipleStatements: true   // Your database name
   });
-
-  connection.connect((err) => {
+  
+  // Check connection to MySQL
+ connection.connect(err => {
     if (err) {
       console.error('Error connecting to the database:', err.stack);
-      setTimeout(handleDisconnect, 2000); // Retry after 2 seconds
-    } else {
-      console.log('Connected to MySQL database.');
+      return;
     }
+    console.log('Connected to MySQL database.');
   });
 
-  connection.on('error', (err) => {
-    console.error('Database error:', err);
-    if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.fatal) {
-      console.log('Reconnecting to the database...');
-      handleDisconnect();
-    } else {
-      throw err;
-    }
-  });
-}
-
-// First time call
-handleDisconnect();
 
 // Create folder if it doesn't exist
 const qrFolder = path.join(__dirname, "uploadsQR");
@@ -145,14 +129,14 @@ app.post("/insertLogin", (req, res) => {
 
 
   app.post("/login", (req, res) => {
-    const { PhoneNumber, Password } = req.body;
+   const { PhoneNumber, Password, userType } = req.body;
   
-    if (!PhoneNumber || !Password) {
-      return res.status(400).json({ error: "Phone number and password are required" });
-    }
+ if (!PhoneNumber || !Password || !userType) {
+  return res.status(400).json({ error: "Phone number, password, and user type are required." });
+}
   
     // Call Stored Procedure with both parameters
-    connection.query("CALL checkLogin(?, ?)", [PhoneNumber, Password], (err, results) => {
+   connection.query("CALL checkLogin(?, ?, ?)", [PhoneNumber, Password, userType], (err, results) => {
       if (err) {
         console.error("Database error:", err);
         return res.status(500).json({ error: "Database error" });
@@ -175,7 +159,7 @@ app.post("/insertLogin", (req, res) => {
 // }, 3000);
   
        const user = results[0][0];
-       res.json({ message: "Login successful", LoginID: user.LoginID,Role: user.Role ,Interest_enabled: user.Interest_enabled,WA_API: user.WA_API ,Payment_reminder: user.Payment_reminder  });
+       res.json({ message: "Login successful", LoginID: user.LoginID,Role: user.Role ,Interest_enabled: user.Interest_enabled,WA_API: user.WA_API ,Payment_reminder: user.Payment_reminder,BusinessName: user.BusinessName,Receipt_enable : user.Receipt_enable,StaffID: user.StaffID,Staff_enable: user.Staff_enable   });
     });
   });
 
@@ -334,10 +318,18 @@ app.put("/updateCustomer/:id", (req, res) => {
 
 
 app.post("/accounts", (req, res) => {
-  console.log("hi");
-    const { date, customerID,oppositeCustomerID, amount, type, narration,days } = req.body;
+  const {
+    date,
+    customerID,
+    oppositeCustomerID,
+    amount,
+    type,
+    narration,
+    days,
+    staffID,
+  } = req.body;
 
- // Basic validation
+  // Basic validations
   if (!date || date.trim() === '') {
     return res.status(400).json({ error: "Date is required and cannot be blank" });
   }
@@ -351,42 +343,84 @@ app.post("/accounts", (req, res) => {
     return res.status(400).json({ error: "Type is required and cannot be blank" });
   }
 
-console.log("show",oppositeCustomerID);
-    const query = "CALL InsertAccountTransaction(?, ?, ?, ?, ?,?,?)";
-    connection.query(query, [date, customerID,oppositeCustomerID || 0, amount, type, narration,days], (err, results) => {
-        if (err) {
-            console.error("Error inserting transaction:", err);
-            return res.status(500).json({ error: "Internal Server Error" });
-        }
-        res.status(201).json({ message: "Transaction added successfully" });
-    });
+  // Handle staffID: convert "null" (string) or "" to actual null
+  const normalizedStaffID = (staffID === "null" || staffID === "" || staffID === undefined) ? null : staffID;
+
+  // Prepare SQL query with placeholders
+  const query = "CALL InsertAccountTransaction(?, ?, ?, ?, ?, ?, ?, ?)";
+
+  // Execute query
+  connection.query(
+    query,
+    [
+      date,
+      customerID,
+      oppositeCustomerID || 0, // default to 0 if null
+      amount,
+      type,
+      narration || '',
+      days || 0,
+      normalizedStaffID,
+    ],
+    (err, results) => {
+      if (err) {
+        console.error("Error inserting transaction:", err);
+        return res.status(500).json({ error: "Internal Server Error" });
+      }
+
+      res.status(201).json({ message: "Transaction added successfully" });
+    }
+  );
 });
+
+
+// app.get('/getAccountsByDate/:loginID/:selectedDate', (req, res) => {
+//   const { loginID, selectedDate } = req.params;
+
+//   const sql = `CALL GetAccountsBySingleDate(?, ?)`;
+
+//   connection.query(sql, [loginID, selectedDate], (err, result) => {
+//       if (err) {
+//           console.log(err);
+//           res.status(500).send('Error fetching data');
+//       } else {
+//         console.log(result[0]);
+//          // res.send(result[0]);
+//          const formattedResult = result[0].map(item => ({
+//           ...item,
+//           Date: item.Date ? new Date(item.Date).toLocaleDateString('en-CA') : null
+//         }));
+    
+//         res.json(formattedResult);
+
+
+
+//       }
+//   });
+// });
 
 
 app.get('/getAccountsByDate/:loginID/:selectedDate', (req, res) => {
   const { loginID, selectedDate } = req.params;
+  const staffID = parseInt(req.query.staffID) || 0; // <-- this ensures it’s a number, not string or null
 
-  const sql = `CALL GetAccountsBySingleDate(?, ?)`;
+  const sql = `CALL GetAccountsBySingleDate(?, ?, ?)`;
 
-  connection.query(sql, [loginID, selectedDate], (err, result) => {
-      if (err) {
-          console.log(err);
-          res.status(500).send('Error fetching data');
-      } else {
-        console.log(result[0]);
-         // res.send(result[0]);
-         const formattedResult = result[0].map(item => ({
-          ...item,
-          Date: item.Date ? new Date(item.Date).toLocaleDateString('en-CA') : null
-        }));
-    
-        res.json(formattedResult);
-
-
-
-      }
+  connection.query(sql, [loginID, selectedDate, staffID], (err, result) => {
+    if (err) {
+      console.error(err);
+      res.status(500).send('Error fetching data');
+    } else {
+      const formattedResult = result[0].map(item => ({
+        ...item,
+        Date: item.Date ? new Date(item.Date).toLocaleDateString('en-CA') : null
+      }));
+      res.json(formattedResult);
+    }
   });
 });
+
+
 
 app.delete('/deleteAccount/:AccountsID', (req, res) => {
   const { AccountsID } = req.params;
@@ -794,7 +828,6 @@ app.get('/getPhoneNumber/:loginID', (req, res) => {
     res.json({ phoneNumber });
   });
 });
-
 app.post("/insertAdminLogin", (req, res) => {
   const {
     businessName,
@@ -805,25 +838,27 @@ app.post("/insertAdminLogin", (req, res) => {
     WA_API,
     WA_enabled,
     InterestEnable,
-    PaymentReminder, // ✅ added
+    PaymentReminder,
+    Receipt_enable,
     bankDetails,
+     Staff_enable,
   } = req.body;
 
-  if (
-    !businessName ||
-    !phoneNumber ||
-    !password ||
-    validityDate === undefined ||
-    WA_API === undefined ||
-    isEnable === undefined ||
-    WA_enabled === undefined ||
-    InterestEnable === undefined ||
-    PaymentReminder === undefined // ✅ added
-  ) {
-    return res.status(400).json({ error: "Missing required fields" });
+  // ✅ Validate only required fields
+  if (!businessName || !phoneNumber || !password || !validityDate) {
+    return res.status(400).json({
+      error: "businessName, phoneNumber, password, and validityDate are required.",
+    });
   }
 
-  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?,?)"; // ✅ updated
+  // ✅ Default optional flags to 0 if not provided
+  const safe_isEnable = isEnable ? 1 : 0;
+  const safe_WA_enabled = WA_enabled ? 1 : 0;
+  const safe_InterestEnable = InterestEnable ? 1 : 0;
+  const safe_PaymentReminder = PaymentReminder ? 1 : 0;
+  const safe_Receipt_enable = Receipt_enable ? 1 : 0;
+ const safe_Staff_enable = Staff_enable ? 1 : 0;
+  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
 
   connection.query(
     sql,
@@ -831,13 +866,15 @@ app.post("/insertAdminLogin", (req, res) => {
       businessName,
       phoneNumber,
       password,
-      isEnable,
+      safe_isEnable,
       validityDate,
-      WA_API,
-      WA_enabled,
-      InterestEnable,
-      PaymentReminder, // ✅ added
-      bankDetails, // ✅ added
+      WA_API || "",          // fallback to empty string
+      safe_WA_enabled,
+      safe_InterestEnable,
+      safe_PaymentReminder,
+      safe_Receipt_enable,
+      bankDetails || "", 
+       safe_Staff_enable,  ,    // fallback to empty string
     ],
     (err, result) => {
       if (err) {
@@ -892,16 +929,19 @@ app.put("/updateAdmin/:id", (req, res) => {
     Payment_reminder,
     UPI,
      bankDetails,
+
+       Receipt_enable,
+       Staff_enable, // ✅ Add this line
   } = req.body;
 
    if (!phoneNumber || phoneNumber.trim() === '' || !password || password.trim() === '') {
     return res.status(400).json({ error: "Phone number and password cannot be blank" });
   }
 
-  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)";
+  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?,?,?)";
   connection.query(
     sql,
-    [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder,UPI, bankDetails],
+    [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder,UPI, bankDetails,Receipt_enable,Staff_enable],
     (err, results) => {
       if (err) {
         console.error("Update admin error:", err);
@@ -1004,6 +1044,106 @@ app.get('/getPaymentReminder/:loginID/:tillDate', (req, res) => {
     res.json(formattedResult);
   });
 });
+
+
+app.post("/api/addStaff", (req, res) => {
+  const { StaffName, Mobile, Password, FLoginID } = req.body;
+
+  // Validation
+  if (!StaffName || StaffName.trim() === "") {
+    return res.status(400).json({ error: "Staff Name is required!" });
+  }
+  if (Mobile && !/^\d{10}$/.test(Mobile)) {
+    return res.status(400).json({ error: "Mobile number must be 10 digits!" });
+  }
+  if (!Password || Password.trim() === "") {
+    return res.status(400).json({ error: "Password is required!" });
+  }
+  if (!FLoginID || isNaN(FLoginID)) {
+    return res.status(400).json({ error: "Valid FLoginID is required!" });
+  }
+
+  const query = "CALL AddStaff(?, ?, ?, ?)";
+  connection.query(query, [StaffName, Mobile || null, Password, FLoginID], (err, result) => {
+    if (err) {
+      console.error("Error adding staff:", err);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+    res.status(201).json({ message: "Staff added successfully" });
+  });
+});
+
+
+
+app.get("/api/getStaff/:loginID", (req, res) => {
+  const loginID = req.params.loginID;
+
+  connection.query("CALL GetStaffByLoginID(?)", [loginID], (err, results) => {
+    if (err) {
+      console.error("Error fetching staff:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    // MySQL procedures return data in results[0]
+    res.status(200).json(results[0]);
+  });
+});
+
+
+app.put("/api/updateStaff/:staffID", (req, res) => {
+  const staffID = req.params.staffID;
+  const { StaffName, Mobile, Password } = req.body;
+
+  connection.query(
+    "CALL UpdateStaff(?, ?, ?, ?)",
+    [staffID, StaffName, Mobile, Password],
+    (err, results) => {
+      if (err) {
+        console.error("Error updating staff:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.status(200).json({ message: "Staff updated successfully" });
+    }
+  );
+});
+
+app.delete("/api/deleteStaff/:staffID", (req, res) => {
+  const staffID = req.params.staffID;
+
+  connection.query(
+    "CALL DeleteStaff(?)",
+    [staffID],
+    (err, results) => {
+      if (err) {
+        console.error("Error deleting staff:", err);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.status(200).json({ message: "Staff deleted successfully" });
+    }
+  );
+});
+
+app.get("/staff/:loginID", (req, res) => {
+  const loginID = req.params.loginID;
+
+  if (!loginID || loginID.trim() === "") {
+    return res.status(400).json({ error: "Login ID is required!" });
+  }
+
+  const query = "CALL GetStaffListByLoginID(?)"; // Stored procedure call
+
+  connection.query(query, [loginID], (err, results) => {
+    if (err) {
+      console.error("Error fetching staff list:", err);
+      return res.status(500).json({ error: "Internal Server Error" });
+    }
+
+    res.json(results[0]); // Return the staff list
+  });
+});
+
 
 
 
