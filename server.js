@@ -32,13 +32,16 @@ const server = http.createServer((req, res) => {
 });
 
 // MySQL Database connection setup
-const connection = mysql.createConnection({
-    host: 'localhost',          // MySQL server address
-    user: 'root',               // MySQL username
-    password: '3307',               // MySQL password (if any)
-    database: 'saralaccountsdb', 
-      multipleStatements: true   // Your database name
+function handleDisconnect() {
+  connection = mysql.createConnection({
+    host: '103.21.58.4',
+    user: 'saralaccountsuser',
+    password: 'saral@accounts',
+    database: 'saralaccounts_db',
+    port: 3306,
+    multipleStatements: true
   });
+
   
   // Check connection to MySQL
  connection.connect(err => {
