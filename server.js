@@ -143,7 +143,7 @@ app.post("/insertLogin", (req, res) => {
    connection.query("CALL checkLogin(?, ?, ?)", [PhoneNumber, Password, userType], (err, results) => {
       if (err) {
         console.error("Database error:", err);
-        return res.status(500).json({ error: "Database error" });
+        return res.status(500).json({ error: err });
       }
   
       // Check if user exists
