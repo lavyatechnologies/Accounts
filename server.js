@@ -35,9 +35,9 @@ const server = http.createServer((req, res) => {
 function handleDisconnect() {
   connection = mysql.createConnection({
     host: '103.21.58.4',
-    user: 'saralaccountsuser',
+    user: 'saralaccounts',
     password: 'saral@accounts',
-    database: 'saralaccounts_db',
+    database: 'saralaccountsdb',
     port: 3306,
     multipleStatements: true
   });
