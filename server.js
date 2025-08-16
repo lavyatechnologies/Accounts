@@ -1152,7 +1152,7 @@ app.get("/staff/:loginID", (req, res) => {
 
 
 const util = require("util");
-const query = util.promisify(connection.query).bind(connection);
+const query = util.promisify(pool.query).bind(pool);
 
 
 
@@ -1177,5 +1177,6 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
+
 
 
