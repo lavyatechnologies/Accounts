@@ -161,9 +161,8 @@ app.post("/insertLogin", (req, res) => {
 //     WA_API: user.WA_API,
 //   });
 // }, 3000);
-  
-       const user = results[0][0];
-       res.json({ message: "Login successful", LoginID: user.LoginID,Role: user.Role ,Interest_enabled: user.Interest_enabled,WA_API: user.WA_API ,Payment_reminder: user.Payment_reminder,BusinessName: user.BusinessName,Receipt_enable : user.Receipt_enable,StaffID: user.StaffID,Staff_enable: user.Staff_enable   });
+   const user = results[0][0];
+       res.json({ message: "Login successful", LoginID: user.LoginID,Role: user.Role ,Interest_enabled: user.Interest_enabled,WA_API: user.WA_API ,Payment_reminder: user.Payment_reminder,BusinessName: user.BusinessName,Receipt_enable : user.Receipt_enable,StaffID: user.StaffID,Staff_enable: user.Staff_enable , ValidityDate: user.ValidityDate  });
     });
   });
 
@@ -1178,3 +1177,4 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
+
