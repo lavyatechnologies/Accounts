@@ -32,27 +32,27 @@ const server = http.createServer((req, res) => {
 });
 
 // MySQL Database connection setup
-function handleDisconnect() {
-  connection = mysql.createConnection({
-    host: '103.21.58.4',
-    user: 'saralaccounts',
-    password: 'saral@accounts',
-    database: 'saralaccountsdb',
-    port: 3306,
-    multipleStatements: true
-  });
+const pool = mysql.createPool({
+  host: '103.21.58.4',
+  user: 'saralaccounts',
+  password: 'saral@accounts',
+  database: 'saralaccountsdb',
+  port: 3306,
+  multipleStatements: true,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-  
-  // Check connection to MySQL
- connection.connect(err => {
-    if (err) {
-      console.error('Error connecting to the database:', err.stack);
-      return;
-    }
-    console.log('Connected to MySQL database.');
-  });
-}
-handleDisconnect();
+pool.getConnection((err, connection) => {
+  if (err) {
+    console.error('Error connecting to the database:', err.stack);
+    return;
+  }
+  console.log('Connected to MySQL database using connection pool.');
+  connection.release(); // release the test connection
+});
+
 
 // Create folder if it doesn't exist
 const qrFolder = path.join(__dirname, "uploadsQR");
@@ -117,7 +117,7 @@ app.post("/insertLogin", (req, res) => {
   
     // Call the stored procedure
     const sql = "CALL insertLogin(?, ?, ?)";
-    connection.query(sql, [businessName, phoneNumber, password], (err, result) => {
+  pool.query(sql, [businessName, phoneNumber, password], (err, result) => {
       if (err) {
         console.error("Error executing stored procedure:", err);
 
@@ -140,7 +140,7 @@ app.post("/insertLogin", (req, res) => {
 }
   
     // Call Stored Procedure with both parameters
-   connection.query("CALL checkLogin(?, ?, ?)", [PhoneNumber, Password, userType], (err, results) => {
+pool.query("CALL checkLogin(?, ?, ?)", [PhoneNumber, Password, userType], (err, results) => {
       if (err) {
         console.error("Database error:", err);
         return res.status(500).json({ error: err });
@@ -182,7 +182,7 @@ app.post("/insertLogin", (req, res) => {
 
   const query = `CALL addCustomers(?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  connection.query(
+pool.query(
     query,
     [name, mobile, address, fLoginID, formattedDate, amount || null, type, interest],
     (err, result) => {
@@ -240,7 +240,7 @@ app.delete("/deleteQR/:loginID", (req, res) => {
   }
 
     const query = "CALL GetCustomersByLogin(?)"; // Calling the stored procedure
-    connection.query(query, [loginID], (err, results) => {
+    pool.query(query, [loginID], (err, results) => {
       if (err) {
         console.error("Error fetching customers:", err); 
         return res.status(500).json({ error: "Internal Server Error" });
@@ -257,7 +257,7 @@ app.delete("/deleteQR/:loginID", (req, res) => {
 
     const query = "CALL GetCustomerListByLogin(?)"; // new stored procedure
 
-    connection.query(query, [loginID], (err, results) => {
+    pool.query(query, [loginID], (err, results) => {
         if (err) {
             console.error("Error fetching simple customers:", err);
             return res.status(500).json({ error: "Internal Server Error" });
@@ -276,7 +276,7 @@ app.delete("/customers/:id", (req, res) => {
 
   const sql = "CALL DeleteCustomerByID(?)";
 
-  connection.query(sql, [customerID], (err, result) => {
+ pool.query(sql, [customerID], (err, result) => {
     if (err) {
       console.error("Error deleting customer:", err);
       return res.status(500).json({ error: "Failed to delete customer" });
@@ -307,7 +307,7 @@ app.put("/updateCustomer/:id", (req, res) => {
   }
 
   const sql = "CALL updateCustomer(?, ?, ?, ?,?,?,?,?)";
-  connection.query(sql, [id, name, mobile, address, date, amount || null, type,interest ], (err, results) => {
+  pool.query(sql, [id, name, mobile, address, date, amount || null, type,interest ], (err, results) => {
     if (err) {
       console.error("Update error:", err);
       return res.status(500).json({ error: "Failed to update customer" });
@@ -353,7 +353,7 @@ app.post("/accounts", (req, res) => {
   const query = "CALL InsertAccountTransaction(?, ?, ?, ?, ?, ?, ?, ?)";
 
   // Execute query
-  connection.query(
+  pool.query(
     query,
     [
       date,
@@ -382,7 +382,7 @@ app.post("/accounts", (req, res) => {
 
 //   const sql = `CALL GetAccountsBySingleDate(?, ?)`;
 
-//   connection.query(sql, [loginID, selectedDate], (err, result) => {
+//   pool.query(sql, [loginID, selectedDate], (err, result) => {
 //       if (err) {
 //           console.log(err);
 //           res.status(500).send('Error fetching data');
@@ -409,7 +409,7 @@ app.get('/getAccountsByDate/:loginID/:selectedDate', (req, res) => {
 
   const sql = `CALL GetAccountsBySingleDate(?, ?, ?)`;
 
-  connection.query(sql, [loginID, selectedDate, staffID], (err, result) => {
+pool.query(sql, [loginID, selectedDate, staffID], (err, result) => {
     if (err) {
       console.error(err);
       res.status(500).send('Error fetching data');
@@ -435,7 +435,7 @@ app.delete('/deleteAccount/:AccountsID', (req, res) => {
 
   const sql = `CALL DeleteAccount(?)`;
 
-  connection.query(sql, [AccountsID], (err, results) => {
+ pool.query(sql, [AccountsID], (err, results) => {
     if (err) {
       console.error("Delete error:", err);
       return res.status(500).json({ success: false, message: err.message });
@@ -455,7 +455,7 @@ app.post('/accounts', (req, res) => {
 
   const sql = `CALL InsertOrUpdateAccount(?, ?, ?, ?, ?, ?,?)`;
 
-  connection.query(sql, [AccountsID, date, customerID, amount, narration, type,days], (err, result) => {
+  pool.query(sql, [AccountsID, date, customerID, amount, narration, type,days], (err, result) => {
     if (err) {
       console.log(err);
       return res.status(500).json({ success: false, message: "Database error!" });
@@ -488,7 +488,7 @@ app.put('/updateAccount/:AccountsID', (req, res) => {
 
   const sql = `CALL UpdateAccount(?, ?, ?, ?, ?, ?,?,?)`;
 
-  connection.query(sql, [AccountsID, date, customerID,oppositeCustomerID || 0, amount, narration, type,days], (err, result) => {
+ pool.query(sql, [AccountsID, date, customerID,oppositeCustomerID || 0, amount, narration, type,days], (err, result) => {
     if (err) {
       console.log(err);
       return res.status(500).json({ success: false, message: "Database Error!" });
@@ -515,7 +515,7 @@ app.get("/getCustomerFinalBalance/:loginID", (req, res) => {
 
   const query = `CALL GetCustomerFinalBalance(?, ?)`;
 
-  connection.query(query, [loginID, tillDate], (err, result) => {
+ pool.query(query, [loginID, tillDate], (err, result) => {
     if (err) {
       console.error("Error fetching customer final balance:", err);
       return res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -542,7 +542,7 @@ app.get("/getPartyBalance/:loginID/:customerID", (req, res) => {
   }
 
   const query = "CALL GetBalanceOfSingleParty(?, ?)";
-  connection.query(query, [loginID, customerID], (err, result) => {
+ pool.query(query, [loginID, customerID], (err, result) => {
     if (err) {
       console.error("Error fetching party balance:", err);
       return res.status(500).json({ success: false, message: "Internal Server Error" });
@@ -569,7 +569,7 @@ res.status(200).json({
 
 //   const query = `CALL GetAccountSummary(?, ?, ?, ?)`;
 
-//   connection.query(query, [loginID, customerID, fromDate, toDate], (err, result) => {
+//   pool.query(query, [loginID, customerID, fromDate, toDate], (err, result) => {
 //     if (err) {
 //       console.error("Error fetching summary:", err);
 //       return res.status(500).json({ error: 'Internal Server Error' });
@@ -595,7 +595,7 @@ app.post('/getAccountSummary', async (req, res) => {
 
   const query = `CALL GetAccountSummary(?, ?, ?, ?)`;
 
-  connection.query(query, [loginID, customerID, fromDate, toDate], (err, result) => {
+pool.query(query, [loginID, customerID, fromDate, toDate], (err, result) => {
     if (err) {
       console.error("Error fetching summary:", err);
       return res.status(500).json({ error: 'Internal Server Error' });
@@ -618,7 +618,7 @@ app.post('/getOpeningBalance', (req, res) => {
 
   const sql = 'CALL GetOpeningBalance(?, ?, ?)';
 
-  connection.query(sql, [loginID, customerID, fromDate], (err, result) => {
+pool.query(sql, [loginID, customerID, fromDate], (err, result) => {
       if (err) {
           console.log("Error:", err);
           return res.status(500).send({ message: "Database Error", error: err });
@@ -644,7 +644,7 @@ if (!loginID || loginID.trim() === '') {
 
   const sql = `CALL GetDayBook(?, ?, ?)`;
 
-  connection.query(sql, [loginID, fromDate, toDate], (err, results) => {
+ pool.query(sql, [loginID, fromDate, toDate], (err, results) => {
     if (err) return res.status(500).send(err);
     res.json(results[0]); 
   });
@@ -654,7 +654,7 @@ app.post('/getOpeningBalanceDayBook', (req, res) => {
   const { loginID, fromDate } = req.body;
   const sql = `CALL GetOpeningBalanceDayBook(?, ?)`;
 
-  connection.query(sql, [loginID, fromDate], (err, results) => {
+pool.query(sql, [loginID, fromDate], (err, results) => {
     if (err) return res.status(500).send(err);
     console.log( err);
     res.json(results[0][0]); 
@@ -670,7 +670,7 @@ app.post('/postInterest', (req, res) => {
 
   const query = `CALL PostInterest(?, ?, ?)`;
 
-  connection.query(query, [customerID, amount, date], (err, results) => {
+ pool.query(query, [customerID, amount, date], (err, results) => {
     if (err) {
       console.error('Error executing stored procedure:', err);
       return res.status(500).json({ message: 'Failed to post interest.' });
@@ -691,7 +691,7 @@ app.get('/getFirmDetails/:loginID', (req, res) => {
 
   const sql = 'CALL GetFirmDetailsByLoginID(?)';
 
-  connection.query(sql, [loginID], (err, results) => {
+pool.query(sql, [loginID], (err, results) => {
     if (err) {
       console.error('Error executing stored procedure:', err);
       return res.status(500).json({ error: 'Database error' });
@@ -726,7 +726,7 @@ app.put('/updateFirmDetails/:loginID', (req, res) => {
   const sql = 'CALL UpdateFirmDetailsByLoginID(?, ?, ?, ?, ?, ?, ?)';
   const values = [loginID, BusinessName, PhoneNumber, ValidityDate, InterestEnable, PaymentReminder, UPI];
 
-  connection.query(sql, values, (err, results) => {
+ pool.query(sql, values, (err, results) => {
     if (err) {
       console.error('Error executing procedure:', err);
       return res.status(500).json({ error: 'Database error' });
@@ -764,7 +764,7 @@ app.get('/getWaStatus/:loginID', (req, res) => {
 
   const sql = 'CALL GetWAStatus(?)';
 
-  connection.query(sql, [loginID], (err, results) => {
+ pool.query(sql, [loginID], (err, results) => {
     if (err) {
       console.error("Error calling stored procedure:", err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -789,7 +789,7 @@ app.post('/change-password', (req, res) => {
   // SQL to call the stored procedure and retrieve the result
   const sql = `CALL ChangePassword(?, ?, ?, @result); SELECT @result AS message;`;
 
-  connection.query(sql, [phoneNumber, oldPassword, newPassword], (err, results) => {
+pool.query(sql, [phoneNumber, oldPassword, newPassword], (err, results) => {
     if (err) {
       console.error('DB Error:', err);
       return res.status(500).json({ message: 'Database error' });
@@ -816,7 +816,7 @@ app.get('/getPhoneNumber/:loginID', (req, res) => {
 
   const sql = 'CALL GetPhoneNumberByLoginID(?)';
 
-  connection.query(sql, [loginID], (err, results) => {
+ pool.query(sql, [loginID], (err, results) => {
     if (err) {
       console.error('Error fetching phone number:', err);
       return res.status(500).json({ error: 'Database error' });
@@ -863,7 +863,7 @@ app.post("/insertAdminLogin", (req, res) => {
  const safe_Staff_enable = Staff_enable ? 1 : 0;
   const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
 
-  connection.query(
+pool.query(
     sql,
     [
       businessName,
@@ -896,7 +896,7 @@ app.post("/insertAdminLogin", (req, res) => {
 app.get("/getAdminLogins", (req, res) => {
   const sql = "CALL GetAllAdmins()";
 
-  connection.query(sql, (err, results) => {
+ pool.query(sql, (err, results) => {
   if (err) {
   console.error("Error executing stored procedure:", err);
 
@@ -942,7 +942,7 @@ app.put("/updateAdmin/:id", (req, res) => {
   }
 
   const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?,?,?)";
-  connection.query(
+ pool.query(
     sql,
     [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder,UPI, bankDetails,Receipt_enable,Staff_enable],
     (err, results) => {
@@ -963,7 +963,7 @@ app.delete('/deleteAdmin/:phoneNumber', (req, res) => {
     return res.status(400).json({ error: 'Phone number is required and cannot be blank' });
   }
 
-  connection.query('CALL DeleteAdminByPhone(?)', [phone], (err, results) => {
+pool.query('CALL DeleteAdminByPhone(?)', [phone], (err, results) => {
     if (err) {
       console.error('Error calling stored procedure:', err);
       return res.status(500).json({ error: 'Database error' });
@@ -987,7 +987,7 @@ app.post('/ledgerReportByPhone', (req, res) => {
     return res.status(400).json({ error: 'Phone number is required.' });
   }
 
-  connection.query('CALL GetLedgerDetailsByPhone(?)', [phone], (err, results) => {
+pool.query('CALL GetLedgerDetailsByPhone(?)', [phone], (err, results) => {
     if (err) {
       console.error('Error calling stored procedure:', err);
       return res.status(500).json({ error: 'Database error.' });
@@ -1010,7 +1010,7 @@ app.post('/getBusinessesByPhone', (req, res) => {
     return res.status(400).json({ error: 'Phone number is required.' });
   }
 
-  connection.query('CALL GetBusinessByPhone(?)', [phone], (err, results) => {
+pool.query('CALL GetBusinessByPhone(?)', [phone], (err, results) => {
     if (err) {
       console.error('Error calling stored procedure:', err);
       return res.status(500).json({ error: 'Database error.' });
@@ -1031,7 +1031,7 @@ app.get('/getPaymentReminder/:loginID/:tillDate', (req, res) => {
 
   const sql = `CALL GetPaymentReminderDetails(?, ?)`;
 
-  connection.query(sql, [loginID, tillDate], (err, result) => {
+pool.query(sql, [loginID, tillDate], (err, result) => {
     if (err) {
       console.error('MySQL Error:', err);
       return res.status(500).send('Error fetching payment reminder data');
@@ -1067,7 +1067,7 @@ app.post("/api/addStaff", (req, res) => {
   }
 
   const query = "CALL AddStaff(?, ?, ?, ?)";
-  connection.query(query, [StaffName, Mobile || null, Password, FLoginID], (err, result) => {
+  pool.query(query, [StaffName, Mobile || null, Password, FLoginID], (err, result) => {
     if (err) {
       console.error("Error adding staff:", err);
       return res.status(500).json({ error: "Internal Server Error" });
@@ -1081,7 +1081,7 @@ app.post("/api/addStaff", (req, res) => {
 app.get("/api/getStaff/:loginID", (req, res) => {
   const loginID = req.params.loginID;
 
-  connection.query("CALL GetStaffByLoginID(?)", [loginID], (err, results) => {
+ pool.query("CALL GetStaffByLoginID(?)", [loginID], (err, results) => {
     if (err) {
       console.error("Error fetching staff:", err);
       return res.status(500).json({ error: "Database error" });
@@ -1097,7 +1097,7 @@ app.put("/api/updateStaff/:staffID", (req, res) => {
   const staffID = req.params.staffID;
   const { StaffName, Mobile, Password } = req.body;
 
-  connection.query(
+ pool.query(
     "CALL UpdateStaff(?, ?, ?, ?)",
     [staffID, StaffName, Mobile, Password],
     (err, results) => {
@@ -1114,7 +1114,7 @@ app.put("/api/updateStaff/:staffID", (req, res) => {
 app.delete("/api/deleteStaff/:staffID", (req, res) => {
   const staffID = req.params.staffID;
 
-  connection.query(
+pool.query(
     "CALL DeleteStaff(?)",
     [staffID],
     (err, results) => {
@@ -1137,7 +1137,7 @@ app.get("/staff/:loginID", (req, res) => {
 
   const query = "CALL GetStaffListByLoginID(?)"; // Stored procedure call
 
-  connection.query(query, [loginID], (err, results) => {
+ pool.query(query, [loginID], (err, results) => {
     if (err) {
       console.error("Error fetching staff list:", err);
       return res.status(500).json({ error: "Internal Server Error" });
@@ -1177,4 +1177,5 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
+
 
