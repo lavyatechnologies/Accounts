@@ -9,7 +9,8 @@ const mysql = require('mysql2');
 const cors = require('cors');
 // Specify the port to listen on
 const port =  process.env.PORT || 3002;
-
+const ExcelJS = require("exceljs"); 
+const { exec } = require("child_process"); 
 const app = express();
 app.use(cors());
 //const open = require('open');  // Import the open package
@@ -20,7 +21,7 @@ app.use(bodyParser.json());
 
 // Serve static files (optional if you want to serve HTML from the server)
 app.use(express.static('public'));
-
+ 
 // Create an HTTP server
 const server = http.createServer((req, res) => {
     // Set the response headers
@@ -36,7 +37,7 @@ const pool = mysql.createPool({
   host: '103.21.58.4',
   user: 'saralaccounts',
   password: 'saral@accounts',
-  database: 'saralaccountsdb',
+  database:'saralaccountsdb',
   port: 3306,
   multipleStatements: true,
   waitForConnections: true,
@@ -1147,7 +1148,115 @@ app.get("/staff/:loginID", (req, res) => {
   });
 });
 
+function normalizeRows(rows) {
+  return rows.map(row => {
+    const newRow = {};
+    for (let key in row) {
+      if (Buffer.isBuffer(row[key])) {
+        // BIT(1) ko 0 ya 1 me convert karo
+        newRow[key] = row[key][0];
+      } else {
+        newRow[key] = row[key];
+      }
+    }
+    return newRow;
+  });
+}
 
+
+app.get("/backup/:loginID", (req, res) => {
+  const loginID = req.params.loginID;
+
+  // Call stored procedure
+  pool.query("CALL GetBackupData(?)", [loginID], async (err, results) => {
+    if (err) {
+      console.error("Error executing stored procedure:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    try {
+      // Mapping according to your tables
+   const loginData = normalizeRows(results[0]);
+const customerData = normalizeRows(results[1]);
+const staffData = normalizeRows(results[2]);
+const accountsData = normalizeRows(results[3]);
+
+      // Workbook create
+      const workbook = new ExcelJS.Workbook();
+
+      // Helper function
+      function addSheet(name, rows) {
+        const sheet = workbook.addWorksheet(name);
+        if (rows.length > 0) {
+          sheet.columns = Object.keys(rows[0]).map((key) => ({
+            header: key,
+            key,
+            width: 20,
+          }));
+          rows.forEach((row) => sheet.addRow(row));
+        }
+      }
+
+      addSheet("Login", loginData);
+      addSheet("Customer", customerData);
+      addSheet("Staff", staffData);
+      addSheet("Accounts", accountsData);
+
+      // Excel file ka naam BusinessName se lo
+      let fileName = `backup_${loginID}.xlsx`;
+      if (loginData.length > 0 && loginData[0].BusinessName) {
+        fileName = `${loginData[0].BusinessName}_backup.xlsx`;
+      }
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (err) {
+      console.error("Excel generation error:", err);
+      res.status(500).json({ error: "Backup generation failed" });
+    }
+  });
+});
+
+
+app.get('/api/export-db', (req, res) => {
+  // yahan se database config nikal lo
+  const dbConfig = pool.config.connectionConfig;
+  const dbName = dbConfig.database;
+
+  // Current date ko ddMMyyyy format me bnao
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  const formattedDate = `${day}${month}${year}`;
+
+  const backupFile = path.join(__dirname, `${dbName}_${formattedDate}.sql`);
+
+  const mysqldumpPath = `"C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqldump.exe"`;
+
+  // dbConfig se user/pass/port le rahe hain
+  const dumpCommand = `${mysqldumpPath} -u ${dbConfig.user} -p${dbConfig.password} --port=${dbConfig.port} ${dbName} > "${backupFile}"`;
+
+  exec(dumpCommand, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Export error: ${error.message}`);
+      return res.status(500).send('Database export failed');
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+    }
+    console.log(`Database exported to ${backupFile}`);
+
+    // Client ko file download karwao database name + date ke sath
+    res.download(backupFile, `${dbName}_${formattedDate}.sql`);
+  });
+});
 
 
 
@@ -1177,6 +1286,4 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
-
-
 
