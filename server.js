@@ -34,10 +34,10 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const pool = mysql.createPool({
-  host: '103.21.58.4',
-  user: 'saralaccounts',
-  password: 'saral@accounts',
-  database:'saralaccountsdb',
+  host: 'localhost',
+  user: 'root',
+  password: '3307',
+  database: 'saralaccountsdb',
   port: 3306,
   multipleStatements: true,
   waitForConnections: true,
@@ -1257,6 +1257,22 @@ app.get('/api/export-db', (req, res) => {
     res.download(backupFile, `${dbName}_${formattedDate}.sql`);
   });
 });
+
+// Clear Account Route
+app.post('/clearAccount', async (req, res) => {
+  const { accountId } = req.body;
+  if (!accountId) return res.status(400).send("AccountID required");
+
+  try {
+    // Use pool.promise() for async/await
+    const [rows] = await pool.promise().query("CALL ClearAccountDays(?)", [accountId]);
+    res.json({ success: true, message: "Account cleared successfully" });
+  } catch (err) {
+    console.error("Error clearing account:", err);
+    res.status(500).send("Error clearing account");
+  }
+});
+
 
 
 
