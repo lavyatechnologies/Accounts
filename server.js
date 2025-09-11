@@ -2,6 +2,9 @@ const fs = require("fs");
 const path = require("path");
 // fileName : server.js 
 // Example using the http module
+
+const multer = require("multer");
+
 const http = require('http');
 const express = require('express');
 const mysql = require('mysql2');
@@ -34,9 +37,9 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const pool = mysql.createPool({
-  host: '103.21.58.4',
-  user: 'saralaccounts',
-  password: 'saral@accounts',
+  host: 'localhost',
+  user: 'root',
+  password: '3307',
   database: 'saralaccountsdb',
   port: 3306,
   multipleStatements: true,
@@ -168,45 +171,45 @@ pool.query("CALL checkLogin(?, ?, ?)", [PhoneNumber, Password, userType], (err, 
   });
 
 
- app.post("/addCustomer", (req, res) => {
-  const { name, mobile, address, fLoginID, date, amount, type, interest } = req.body;
+//  app.post("/addCustomer", (req, res) => {
+//   const { name, mobile, address, fLoginID, date, amount, type, interest } = req.body;
 
-  if (!name || !mobile || !fLoginID) {
-    return res.status(400).json({ error: "Name, Mobile, and Login ID are required!" });
-  }
+//   if (!name || !mobile || !fLoginID) {
+//     return res.status(400).json({ error: "Name, Mobile, and Login ID are required!" });
+//   }
 
-  if (!/^\d{10}$/.test(mobile)) {
-    return res.status(400).json({ error: "Mobile number must be 10 digits!" });
-  }
+//   if (!/^\d{10}$/.test(mobile)) {
+//     return res.status(400).json({ error: "Mobile number must be 10 digits!" });
+//   }
 
-  const formattedDate = date || new Date().toISOString().split("T")[0];
+//   const formattedDate = date || new Date().toISOString().split("T")[0];
 
-  const query = `CALL addCustomers(?, ?, ?, ?, ?, ?, ?, ?)`;
+//   const query = `CALL addCustomers(?, ?, ?, ?, ?, ?, ?, ?)`;
 
-pool.query(
-    query,
-    [name, mobile, address, fLoginID, formattedDate, amount || null, type, interest],
-    (err, result) => {
-      if (err) {
-        if (err.code === "ER_DUP_ENTRY") {
-          // Check for the specific unique key causing the error
-          if (err.sqlMessage.includes("mobileLoginid")) {
-            return res.status(409).json({ error: "This mobile number is already registered." });
-          }
-            if (err.sqlMessage.includes("nameloginid")) {
-            return res.status(409).json({ error: "This customer name is already registered." });
-          }
-          return res.status(409).json({ error: "Duplicate entry." });
-        }
+// pool.query(
+//     query,
+//     [name, mobile, address, fLoginID, formattedDate, amount || null, type, interest],
+//     (err, result) => {
+//       if (err) {
+//         if (err.code === "ER_DUP_ENTRY") {
+//           // Check for the specific unique key causing the error
+//           if (err.sqlMessage.includes("mobileLoginid")) {
+//             return res.status(409).json({ error: "This mobile number is already registered." });
+//           }
+//             if (err.sqlMessage.includes("nameloginid")) {
+//             return res.status(409).json({ error: "This customer name is already registered." });
+//           }
+//           return res.status(409).json({ error: "Duplicate entry." });
+//         }
 
-        console.error("Error inserting customer:", err);
-        return res.status(500).json({ error: "Server error while adding customer." });
-      }
+//         console.error("Error inserting customer:", err);
+//         return res.status(500).json({ error: "Server error while adding customer." });
+//       }
 
-      res.status(201).json({ message: "Customer added successfully!" });
-    }
-  );
-});
+//       res.status(201).json({ message: "Customer added successfully!" });
+//     }
+//   );
+// });
 
 
 app.delete("/deleteQR/:loginID", (req, res) => {
@@ -233,22 +236,22 @@ app.delete("/deleteQR/:loginID", (req, res) => {
   });
 });
 
-  app.get("/customers/:loginID", (req, res) => {
-    const loginID = req.params.loginID;
+  // app.get("/customers/:loginID", (req, res) => {
+  //   const loginID = req.params.loginID;
     
-  if (!loginID || loginID.trim() === "") {
-    return res.status(400).json({ error: "Login ID is required!" });
-  }
+  // if (!loginID || loginID.trim() === "") {
+  //   return res.status(400).json({ error: "Login ID is required!" });
+  // }
 
-    const query = "CALL GetCustomersByLogin(?)"; // Calling the stored procedure
-    pool.query(query, [loginID], (err, results) => {
-      if (err) {
-        console.error("Error fetching customers:", err); 
-        return res.status(500).json({ error: "Internal Server Error" });
-      }
-      res.json(results[0]); // MySQL stored procedures return results in an array
-    });
-  });
+  //   const query = "CALL GetCustomersByLogin(?)"; // Calling the stored procedure
+  //   pool.query(query, [loginID], (err, results) => {
+  //     if (err) {
+  //       console.error("Error fetching customers:", err); 
+  //       return res.status(500).json({ error: "Internal Server Error" });
+  //     }
+  //     res.json(results[0]); // MySQL stored procedures return results in an array
+  //   });
+  // });
 
   app.get("/customers/simple/:loginID", (req, res) => {
     const loginID = req.params.loginID;
@@ -268,57 +271,57 @@ app.delete("/deleteQR/:loginID", (req, res) => {
 });
   
 
-app.delete("/customers/:id", (req, res) => {
-  const customerID = req.params.id;
+// app.delete("/customers/:id", (req, res) => {
+//   const customerID = req.params.id;
 
- if (!customerID || isNaN(customerID)) {
-    return res.status(400).json({ error: "Valid customer ID is required!" });
-  }
+//  if (!customerID || isNaN(customerID)) {
+//     return res.status(400).json({ error: "Valid customer ID is required!" });
+//   }
 
-  const sql = "CALL DeleteCustomerByID(?)";
+//   const sql = "CALL DeleteCustomerByID(?)";
 
- pool.query(sql, [customerID], (err, result) => {
-    if (err) {
-      console.error("Error deleting customer:", err);
-      return res.status(500).json({ error: "Failed to delete customer" });
-    }
+//  pool.query(sql, [customerID], (err, result) => {
+//     if (err) {
+//       console.error("Error deleting customer:", err);
+//       return res.status(500).json({ error: "Failed to delete customer" });
+//     }
 
-    res.status(200).json({ message: " deleted successfully" });
-  });
-});
+//     res.status(200).json({ message: " deleted successfully" });
+//   });
+// });
 
 
-app.put("/updateCustomer/:id", (req, res) => {
-  const id = req.params.id;
+// app.put("/updateCustomer/:id", (req, res) => {
+//   const id = req.params.id;
 
-  if (!id || isNaN(id)) {
-    return res.status(400).json({ error: "Valid customer ID is required!" });
-  }
+//   if (!id || isNaN(id)) {
+//     return res.status(400).json({ error: "Valid customer ID is required!" });
+//   }
 
-  const { name, mobile, address, date, amount, type,interest } = req.body;
+//   const { name, mobile, address, date, amount, type,interest } = req.body;
 
-  if (!name || name.trim() === '') {
-    return res.status(400).json({ error: "Name is required and cannot be blank" });
-  }
-  if (!mobile || mobile.trim() === '') {
-    return res.status(400).json({ error: "Mobile is required and cannot be blank" });
-  }
-  if (!type || type.trim() === '') {
-    return res.status(400).json({ error: "Type is required and cannot be blank" });
-  }
+//   if (!name || name.trim() === '') {
+//     return res.status(400).json({ error: "Name is required and cannot be blank" });
+//   }
+//   if (!mobile || mobile.trim() === '') {
+//     return res.status(400).json({ error: "Mobile is required and cannot be blank" });
+//   }
+//   if (!type || type.trim() === '') {
+//     return res.status(400).json({ error: "Type is required and cannot be blank" });
+//   }
 
-  const sql = "CALL updateCustomer(?, ?, ?, ?,?,?,?,?)";
-  pool.query(sql, [id, name, mobile, address, date, amount || null, type,interest ], (err, results) => {
-    if (err) {
-      console.error("Update error:", err);
-      return res.status(500).json({ error: "Failed to update customer" });
+//   const sql = "CALL updateCustomer(?, ?, ?, ?,?,?,?,?)";
+//   pool.query(sql, [id, name, mobile, address, date, amount || null, type,interest ], (err, results) => {
+//     if (err) {
+//       console.error("Update error:", err);
+//       return res.status(500).json({ error: "Failed to update customer" });
       
-    }
+//     }
 
     
-    res.status(200).json({ message: " updated successfully" });
-  });
-});
+//     res.status(200).json({ message: " updated successfully" });
+//   });
+// });
 
 
 app.post("/accounts", (req, res) => {
@@ -1274,6 +1277,414 @@ app.post('/clearAccount', async (req, res) => {
 });
 
 
+app.get("/api/loans/:loginId", async (req, res) => {
+  const { loginId } = req.params;
+  try {
+    const [rows] = await pool.promise().query("CALL GetLoans(?)", [loginId]);
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching loans" });
+  }
+});
+
+// Add Loan
+app.post("/api/loans/add", async (req, res) => {
+  const {
+    fLoginID,
+    fCustomerID,
+    StartDate,
+    PayAmount,
+    LoanAmount,
+    Installments,
+    EMI,
+    Type,
+    Frequency,
+    EndDate,
+  } = req.body;
+
+  try {
+    await pool
+      .promise()
+      .query("CALL AddLoan(?,?,?,?,?,?,?,?,?,?)", [
+        fLoginID,
+        fCustomerID,
+        StartDate,
+        PayAmount,
+        LoanAmount,
+        Installments,
+        EMI,
+        Type,
+        Frequency,
+        EndDate,
+      ]);
+    res.json({ success: true, message: "Loan added successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error adding loan" });
+  }
+});
+
+// Update Loan
+app.put("/api/loans/update/:loanId", async (req, res) => {
+  const { loanId } = req.params;
+  const {
+    fCustomerID,
+    StartDate,
+    PayAmount,
+    LoanAmount,
+    Installments,
+    EMI,
+    Type,
+    Frequency,
+    EndDate,
+  } = req.body;
+
+  try {
+    await pool
+      .promise()
+      .query("CALL UpdateLoan(?,?,?,?,?,?,?,?,?,?)", [
+        loanId,
+        fCustomerID,
+        StartDate,
+        PayAmount,
+        LoanAmount,
+        Installments,
+        EMI,
+        Type,
+        Frequency,
+        EndDate,
+      ]);
+    res.json({ success: true, message: "Loan updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error updating loan" });
+  }
+
+});
+
+app.post("/api/loanTransactions/add", async (req, res) => {
+  try {
+    const { CurrentDate, Amount, Narration, fLoanID } = req.body;
+
+    await pool.promise().query(
+      "CALL AddLoanTransaction(?, ?, ?, ?)",
+      [CurrentDate, Amount, Narration, fLoanID]
+    );
+
+    res.json({ success: true, message: "Receipt transaction added successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Get Loan Transactions by LoginID
+app.get("/api/loanTransactions/:fLoginID", async (req, res) => {
+  try {
+    const { fLoginID } = req.params;
+
+    const [rows] = await pool.promise().query(
+      "CALL GetLoanTransactionsByLogin(?)",
+      [fLoginID]
+    );
+
+    // जब SP कॉल करते हैं तो rows[0] में असली data होता है
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+app.get("/api/loanTransactions/loansDropdown/:fLoginID", async (req, res) => {
+  try {
+    const { fLoginID } = req.params;
+
+    const [rows] = await pool.promise().query(
+      "CALL GetLoansDropdown(?)",
+      [fLoginID]
+    );
+
+    res.json({ success: true, data: rows[0] }); // SP का पहला result set
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/loanSummary/:fLoginID/:currentDate", async (req, res) => {
+  try {
+    const { fLoginID, currentDate } = req.params;
+
+    const [rows] = await pool.promise().query(
+      "CALL GetLoanSummaryByLogin(?, ?)",
+      [fLoginID, currentDate]
+    );
+
+    console.log("LoanSummary Raw Result:", rows);   // 👈 Debug
+    console.log("LoanSummary First Set:", rows[0]); // 👈 Debug
+
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("LoanSummary API Error:", err);   // 👈 Debug
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+app.get("/api/loanTransactions/byLoan/:loanID", async (req, res) => {
+  try {
+    const { loanID } = req.params;
+    const [rows] = await pool.promise().query("CALL GetTransactionsByLoan(?)", [loanID]);
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete("/api/loanTransactions/:ltid", async (req, res) => {
+  try {
+    const { ltid } = req.params;
+    await pool.promise().query("CALL DeleteLoanTransaction(?)", [ltid]);
+    res.json({ success: true, message: "Transaction deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+
+
+// ================= MULTER CONFIG =================
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const folder = path.join(__dirname, "uploads", file.fieldname);
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+    cb(null, folder);
+  },
+  filename: (req, file, cb) => {
+    // temporary filename; will rename later
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
+
+// ==// ================= ADD CUSTOMER (Stored Procedure) =================
+// ================= ADD CUSTOMER (Stored Procedure with CustomerID in filenames) =================
+app.post(
+  "/addCustomer",
+  upload.fields([
+    { name: "document1", maxCount: 1 },
+    { name: "document2", maxCount: 1 },
+    { name: "document3", maxCount: 1 },
+    { name: "document4", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { name, mobile, address, fLoginID, date, amount, type, interest } = req.body;
+      const formattedDate = date || new Date().toISOString().split("T")[0];
+
+      // Step 1: Prepare temporary filenames
+      const docs = { document1: null, document2: null, document3: null, document4: null };
+      Object.keys(req.files || {}).forEach((field) => {
+        const file = req.files[field][0];
+        const ext = path.extname(file.originalname);
+        docs[field] = `temp-${Date.now()}${ext}`; // temporary filename
+      });
+
+      // Step 2: Call stored procedure with temp filenames
+      const result = await query(
+        "CALL addCustomers(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          name,
+          mobile,
+          address,
+          fLoginID,
+          formattedDate,
+          amount || null,
+          type,
+          interest,
+          docs.document1,
+          docs.document2,
+          docs.document3,
+          docs.document4,
+        ]
+      );
+
+      const customerID = result[0][0].CustomerID;
+
+      // Step 3: Rename uploaded files using CustomerID
+      Object.keys(req.files || {}).forEach((field) => {
+        const file = req.files[field][0];
+        const ext = path.extname(file.originalname);
+        const finalName = `${customerID}${ext}`;
+        const folderPath = path.join(__dirname, "uploads", field);
+        if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+        const finalPath = path.join(folderPath, finalName);
+        fs.renameSync(file.path, finalPath);
+        docs[field] = finalName;
+      });
+
+      // Step 4: Update filenames in the same customer row
+      await query(
+        "UPDATE customer SET document1 = ?, document2 = ?, document3 = ?, document4 = ? WHERE CustomerID = ?",
+        [docs.document1, docs.document2, docs.document3, docs.document4, customerID]
+      );
+
+      res.status(201).json({
+        message: "Customer added successfully",
+        CustomerID: customerID,
+      });
+    } catch (err) {
+      console.error("Add Customer Error:", err);
+      res.status(500).json({ error: "Failed to add customer" });
+    }
+  }
+);
+// ================= UPDATE CUSTOMER =================
+app.put(
+  "/updateCustomer/:id",
+  upload.fields([
+    { name: "document1", maxCount: 1 },
+    { name: "document2", maxCount: 1 },
+    { name: "document3", maxCount: 1 },
+    { name: "document4", maxCount: 1 },
+  ]),
+  (req, res) => {
+    const id = req.params.id;
+    const { name, mobile, address, date, amount, type, interest } = req.body;
+
+    pool.query(
+      "SELECT document1, document2, document3, document4 FROM customer WHERE CustomerID = ?",
+      [id],
+      (err, rows) => {
+        if (err || !rows[0]) return res.status(404).json({ error: "Customer not found" });
+
+        const oldDocs = rows[0];
+        const docs = { document1: null, document2: null, document3: null, document4: null };
+
+        try {
+          Object.keys(req.files || {}).forEach((field) => {
+            const file = req.files[field][0];
+            const ext = path.extname(file.originalname);
+            const finalName = `${id}${ext}`;
+            const finalPath = path.join(__dirname, "uploads", field, finalName);
+
+            // delete old file if exists
+            if (oldDocs[field]) {
+              const oldPath = path.join(__dirname, "uploads", field, oldDocs[field]);
+              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+
+            fs.renameSync(file.path, finalPath);
+            docs[field] = finalName;
+          });
+        } catch (fileErr) {
+          console.error("File Rename Error:", fileErr);
+        }
+
+        const sql =
+          "CALL updateCustomer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        pool.query(
+          sql,
+          [
+            id,
+            name,
+            mobile,
+            address,
+            date,
+            amount || null,
+            type,
+            interest,
+            docs.document1,
+            docs.document2,
+            docs.document3,
+            docs.document4,
+          ],
+          (err) => {
+            if (err) {
+              console.error("Update Error:", err);
+              return res.status(500).json({ error: "Failed to update customer" });
+            }
+            res.status(200).json({ message: "Customer updated successfully" });
+          }
+        );
+      }
+    );
+  }
+);
+
+// ================= DELETE CUSTOMER =================
+app.delete("/customers/:id", (req, res) => {
+  const customerID = req.params.id;
+
+  pool.query(
+    "SELECT document1, document2, document3, document4 FROM customer WHERE CustomerID = ?",
+    [customerID],
+    (err, rows) => {
+      if (err || !rows[0]) return res.status(404).json({ error: "Customer not found" });
+
+      ["document1", "document2", "document3", "document4"].forEach((field) => {
+        const filename = rows[0][field];
+        if (filename) {
+          const filePath = path.join(__dirname, "uploads", field, filename);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }
+      });
+
+      const sql = "CALL deleteCustomerByID(?)";
+      pool.query(sql, [customerID], (err) => {
+        if (err) {
+          console.error("Delete Error:", err);
+          return res.status(500).json({ error: "Failed to delete customer" });
+        }
+        res.status(200).json({ message: "Customer and documents deleted successfully" });
+      });
+    }
+  );
+});
+
+// ================= GET CUSTOMERS =================
+app.get("/customers/:loginID", (req, res) => {
+  const loginID = req.params.loginID;
+  const sql = "CALL getCustomersByLogin(?)";
+
+  pool.query(sql, [loginID], (err, results) => {
+    if (err) {
+      console.error("Fetch Error:", err);
+      return res.status(500).json({ error: "Failed to fetch customers" });
+    }
+    res.json(results[0]);
+  });
+});
+
+
+app.get("/api/loanSummarydetail/:fLoginID", async (req, res) => {
+  try {
+    const { fLoginID } = req.params;
+
+    // Assuming your stored procedure can handle null or empty date to fetch all data,
+    // or you can create a new stored procedure GetLoanSummaryByLoginAll
+    const [rows] = await pool.promise().query(
+      "CALL GetLoanSummaryByLoginAll(?)", // new procedure without date
+      [fLoginID]
+    );
+
+    console.log("LoanSummary Raw Result:", rows);   // Debug
+    console.log("LoanSummary First Set:", rows[0]); // Debug
+
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("LoanSummary API Error:", err);   // Debug
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+
+
+
+
+
+
 
 
 const util = require("util");
@@ -1302,5 +1713,4 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
-
 
