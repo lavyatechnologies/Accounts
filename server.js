@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const pool = mysql.createPool({
-  host: '103.21.58.4',
+  host: '03.21.58.4',
   user: 'saralaccounts',
   password: 'saral@accounts',
   database: 'saralaccountsdb',
@@ -56,6 +56,34 @@ pool.getConnection((err, connection) => {
   console.log('Connected to MySQL database using connection pool.');
   connection.release(); // release the test connection
 });
+
+
+const uploadBase = path.join(__dirname, "uploads");
+
+["document1", "document2", "document3", "document4"].forEach(folder => {
+  const dir = path.join(uploadBase, folder);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.get("/download/:docType/:fileName", (req, res) => {
+  const { docType, fileName } = req.params;
+  const filePath = path.join(__dirname, "uploads", docType, fileName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found" });
+  }
+
+  // Force download instead of inline view
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.download(filePath);
+});
+
+
 
 
 // Create folder if it doesn't exist
@@ -848,26 +876,26 @@ app.post("/insertAdminLogin", (req, res) => {
     PaymentReminder,
     Receipt_enable,
     bankDetails,
-     Staff_enable,
+    Staff_enable,
+    Role, // ✅ new field
   } = req.body;
 
-  // ✅ Validate only required fields
   if (!businessName || !phoneNumber || !password || !validityDate) {
     return res.status(400).json({
       error: "businessName, phoneNumber, password, and validityDate are required.",
     });
   }
 
-  // ✅ Default optional flags to 0 if not provided
   const safe_isEnable = isEnable ? 1 : 0;
   const safe_WA_enabled = WA_enabled ? 1 : 0;
   const safe_InterestEnable = InterestEnable ? 1 : 0;
   const safe_PaymentReminder = PaymentReminder ? 1 : 0;
   const safe_Receipt_enable = Receipt_enable ? 1 : 0;
- const safe_Staff_enable = Staff_enable ? 1 : 0;
-  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)";
+  const safe_Staff_enable = Staff_enable ? 1 : 0;
 
-pool.query(
+  const sql = "CALL insertAdminLogin(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+  pool.query(
     sql,
     [
       businessName,
@@ -875,13 +903,14 @@ pool.query(
       password,
       safe_isEnable,
       validityDate,
-      WA_API || "",          // fallback to empty string
+      WA_API || "",
       safe_WA_enabled,
       safe_InterestEnable,
       safe_PaymentReminder,
       safe_Receipt_enable,
-      bankDetails || "", 
-       safe_Staff_enable,  ,    // fallback to empty string
+      bankDetails || "",
+      safe_Staff_enable,
+      Role || "User", // ✅ added
     ],
     (err, result) => {
       if (err) {
@@ -896,23 +925,23 @@ pool.query(
   );
 });
 
-
 app.get("/getAdminLogins", (req, res) => {
   const sql = "CALL GetAllAdmins()";
 
- pool.query(sql, (err, results) => {
-  if (err) {
-  console.error("Error executing stored procedure:", err);
+  pool.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error executing stored procedure:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
 
-  if (err.code === 'ER_DUP_ENTRY') {
-    return res.status(409).json({ error: "Phone number already exists." });
-  }
+    // ⚡ Ensure results[0] is returned safely
+    const admins = Array.isArray(results) && results[0] ? results[0] : [];
 
-  return res.status(500).json({ error: "Database error" });
-}
+    if (admins.length === 0) {
+      return res.status(200).json({ message: "No admins found", data: [] });
+    }
 
-    // Assuming results[0] contains the result set from the stored procedure
-    res.json(results[0]);
+    res.status(200).json({ data: admins });
   });
 });
 
@@ -920,7 +949,7 @@ app.get("/getAdminLogins", (req, res) => {
 app.put("/updateAdmin/:id", (req, res) => {
   const id = req.params.id;
 
- if (!id || isNaN(id)) {
+  if (!id || isNaN(id)) {
     return res.status(400).json({ error: "Valid admin ID is required!" });
   }
 
@@ -935,20 +964,37 @@ app.put("/updateAdmin/:id", (req, res) => {
     InterestEnable,
     Payment_reminder,
     UPI,
-     bankDetails,
-
-       Receipt_enable,
-       Staff_enable, // ✅ Add this line
+    bankDetails,
+    Receipt_enable,
+    Staff_enable,
+    Role, // ✅ new field
   } = req.body;
 
-   if (!phoneNumber || phoneNumber.trim() === '' || !password || password.trim() === '') {
+  if (!phoneNumber || phoneNumber.trim() === "" || !password || password.trim() === "") {
     return res.status(400).json({ error: "Phone number and password cannot be blank" });
   }
 
-  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?,?,?)";
- pool.query(
+  const sql = "CALL updateAdmin(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+  pool.query(
     sql,
-    [id, businessName, phoneNumber, password, isEnable, validityDate, WA_API, WA_enabled, InterestEnable,Payment_reminder,UPI, bankDetails,Receipt_enable,Staff_enable],
+    [
+      id,
+      businessName,
+      phoneNumber,
+      password,
+      isEnable,
+      validityDate,
+      WA_API,
+      WA_enabled,
+      InterestEnable,
+      Payment_reminder,
+      UPI,
+      bankDetails,
+      Receipt_enable,
+      Staff_enable,
+      Role || "User", // ✅ added role
+    ],
     (err, results) => {
       if (err) {
         console.error("Update admin error:", err);
@@ -960,28 +1006,36 @@ app.put("/updateAdmin/:id", (req, res) => {
   );
 });
 
-app.delete('/deleteAdmin/:phoneNumber', (req, res) => {
-  const phone = req.params.phoneNumber;
 
-    if (!phone || phone.trim() === '') {
+app.delete('/deleteAdmin/:phoneNumber', (req, res) => {
+  const phone = req.params.phoneNumber?.trim();
+
+  if (!phone) {
     return res.status(400).json({ error: 'Phone number is required and cannot be blank' });
   }
 
-pool.query('CALL DeleteAdminByPhone(?)', [phone], (err, results) => {
+  const sql = "CALL DeleteAdminByPhone(?)";
+
+  pool.query(sql, [phone], (err, results) => {
     if (err) {
-      console.error('Error calling stored procedure:', err);
-      return res.status(500).json({ error: 'Database error' });
+      console.error("Error calling stored procedure:", err);
+      return res.status(500).json({ error: "Database error" });
     }
 
-    const affectedRows = results?.[0]?.[0]?.affectedRows || 0;
+    // ⚡ Make result handling more robust
+    let affectedRows = 0;
+    if (Array.isArray(results) && results[0] && results[0][0] && results[0][0].affectedRows !== undefined) {
+      affectedRows = results[0][0].affectedRows;
+    }
 
     if (affectedRows === 0) {
-      return res.status(404).json({ error: 'Admin not found or already deleted.' });
+      return res.status(404).json({ error: "Admin not found or already deleted." });
     }
 
-    res.json({ message: 'Admin deleted successfully' });
+    res.status(200).json({ message: "Admin deleted successfully" });
   });
 });
+
 
 
 app.post('/ledgerReportByPhone', (req, res) => {
@@ -1680,6 +1734,24 @@ app.get("/api/loanSummarydetail/:fLoginID", async (req, res) => {
 });
 
 
+app.delete("/api/loans/delete/:loanID", async (req, res) => {
+  const { loanID } = req.params;
+  const { fLoginID } = req.body;
+
+  try {
+    const [rows] = await pool.promise().query(
+      "CALL DeleteLoanAndTransactions(?, ?)",
+      [loanID, fLoginID]
+    );
+
+    res.json({ success: true, message: "Loan deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error deleting loan" });
+  }
+});
+
+
 
 
 
@@ -1713,5 +1785,4 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
-
 
