@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
 
 // MySQL Database connection setup
 const pool = mysql.createPool({
-  host: '03.21.58.4',
+  host: '103.21.58.4',
   user: 'saralaccounts',
   password: 'saral@accounts',
   database: 'saralaccountsdb',
@@ -1785,4 +1785,5 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
+
 
