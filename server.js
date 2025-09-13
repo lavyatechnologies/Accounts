@@ -1355,12 +1355,13 @@ app.post("/api/loans/add", async (req, res) => {
     Type,
     Frequency,
     EndDate,
+    Title,   // 🔹 added
   } = req.body;
 
   try {
     await pool
       .promise()
-      .query("CALL AddLoan(?,?,?,?,?,?,?,?,?,?)", [
+      .query("CALL AddLoan(?,?,?,?,?,?,?,?,?,?,?)", [
         fLoginID,
         fCustomerID,
         StartDate,
@@ -1371,6 +1372,7 @@ app.post("/api/loans/add", async (req, res) => {
         Type,
         Frequency,
         EndDate,
+        Title,   // 🔹 new parameter
       ]);
     res.json({ success: true, message: "Loan added successfully" });
   } catch (err) {
@@ -1392,12 +1394,13 @@ app.put("/api/loans/update/:loanId", async (req, res) => {
     Type,
     Frequency,
     EndDate,
+    Title,   // 🔹 added
   } = req.body;
 
   try {
     await pool
       .promise()
-      .query("CALL UpdateLoan(?,?,?,?,?,?,?,?,?,?)", [
+      .query("CALL UpdateLoan(?,?,?,?,?,?,?,?,?,?,?)", [
         loanId,
         fCustomerID,
         StartDate,
@@ -1408,15 +1411,14 @@ app.put("/api/loans/update/:loanId", async (req, res) => {
         Type,
         Frequency,
         EndDate,
+        Title,   // 🔹 new parameter
       ]);
     res.json({ success: true, message: "Loan updated successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Error updating loan" });
   }
-
 });
-
 app.post("/api/loanTransactions/add", async (req, res) => {
   try {
     const { CurrentDate, Amount, Narration, fLoanID } = req.body;
@@ -1752,6 +1754,28 @@ app.delete("/api/loans/delete/:loanID", async (req, res) => {
 });
 
 
+// UPDATE Transaction
+app.put("/api/loanTransactions/:ltid", async (req, res) => {
+  const ltid = req.params.ltid;
+  const { CurrentDate, Narration, Amount } = req.body;
+
+  try {
+    // CALL procedure with 4 params (same order as SP)
+    await pool
+      .promise()
+      .query("CALL sp_UpdateLoanTransaction(?,?,?,?)", [
+        ltid,
+        CurrentDate,
+        Narration,
+        Amount || 0, // ✅ hamesha Credit me jayega
+      ]);
+
+    res.json({ success: true, message: "Transaction updated successfully" });
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ success: false, message: "Update failed" });
+  }
+});
 
 
 
@@ -1785,5 +1809,4 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
-
 
