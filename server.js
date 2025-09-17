@@ -1355,13 +1355,14 @@ app.post("/api/loans/add", async (req, res) => {
     Type,
     Frequency,
     EndDate,
-    Title,   // 🔹 added
+    Title,
+    Interest,   // 🔹 add this
   } = req.body;
 
   try {
     await pool
       .promise()
-      .query("CALL AddLoan(?,?,?,?,?,?,?,?,?,?,?)", [
+      .query("CALL AddLoan(?,?,?,?,?,?,?,?,?,?,?,?)", [   // 🔹 12 params now
         fLoginID,
         fCustomerID,
         StartDate,
@@ -1372,7 +1373,8 @@ app.post("/api/loans/add", async (req, res) => {
         Type,
         Frequency,
         EndDate,
-        Title,   // 🔹 new parameter
+        Title,
+        Interest,   // 🔹 new parameter
       ]);
     res.json({ success: true, message: "Loan added successfully" });
   } catch (err) {
@@ -1380,7 +1382,6 @@ app.post("/api/loans/add", async (req, res) => {
     res.status(500).json({ success: false, message: "Error adding loan" });
   }
 });
-
 // Update Loan
 app.put("/api/loans/update/:loanId", async (req, res) => {
   const { loanId } = req.params;
@@ -1394,13 +1395,14 @@ app.put("/api/loans/update/:loanId", async (req, res) => {
     Type,
     Frequency,
     EndDate,
-    Title,   // 🔹 added
+    Title,
+    Interest,   // 🔹 add this
   } = req.body;
 
   try {
     await pool
       .promise()
-      .query("CALL UpdateLoan(?,?,?,?,?,?,?,?,?,?,?)", [
+      .query("CALL UpdateLoan(?,?,?,?,?,?,?,?,?,?,?,?)", [   // 🔹 12 params now
         loanId,
         fCustomerID,
         StartDate,
@@ -1411,7 +1413,8 @@ app.put("/api/loans/update/:loanId", async (req, res) => {
         Type,
         Frequency,
         EndDate,
-        Title,   // 🔹 new parameter
+        Title,
+        Interest,   // 🔹 new parameter
       ]);
     res.json({ success: true, message: "Loan updated successfully" });
   } catch (err) {
@@ -1419,6 +1422,8 @@ app.put("/api/loans/update/:loanId", async (req, res) => {
     res.status(500).json({ success: false, message: "Error updating loan" });
   }
 });
+
+
 app.post("/api/loanTransactions/add", async (req, res) => {
   try {
     const { CurrentDate, Amount, Narration, fLoanID } = req.body;
@@ -1460,6 +1465,7 @@ app.get("/api/loanTransactions/loansDropdown/:fLoginID", async (req, res) => {
       "CALL GetLoansDropdown(?)",
       [fLoginID]
     );
+    console.log(rows);
 
     res.json({ success: true, data: rows[0] }); // SP का पहला result set
   } catch (err) {
@@ -1776,6 +1782,29 @@ app.put("/api/loanTransactions/:ltid", async (req, res) => {
     res.status(500).json({ success: false, message: "Update failed" });
   }
 });
+
+app.get("/api/loanTransactions/byDateRangeSP/:loginID", async (req, res) => {
+  const { loginID } = req.params;
+  const { from, to } = req.query;
+
+  if (!from || !to) {
+    return res.status(400).json({ success: false, message: "from and to dates are required" });
+  }
+
+  try {
+    const [rows] = await pool.promise().query("CALL GetTransactionsByDateRange(?, ?, ?)", [
+      loginID,
+      from,
+      to,
+    ]);
+    // rows[0] contains the actual result set from the stored procedure
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
 
 
 
