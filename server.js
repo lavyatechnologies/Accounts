@@ -141,27 +141,28 @@ app.get('/check', (req, res) => {
 
 
 app.post("/insertLogin", (req, res) => {
-    const { businessName, phoneNumber, password } = req.body;
-  
-    if (!businessName || !phoneNumber || !password) {
-      return res.status(400).json({ error: "All fields are required" });
+  const { businessName, phoneNumber, password, role } = req.body;
+
+  if (!businessName || !phoneNumber || !password || !role) {
+    return res.status(400).json({ error: "All fields are required (including role)" });
+  }
+
+  // Call the stored procedure
+  const sql = "CALL insertLogin(?, ?, ?, ?)";
+  pool.query(sql, [businessName, phoneNumber, password, role], (err, result) => {
+    if (err) {
+      console.error("Error executing stored procedure:", err);
+
+      if (err.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ error: "Phone number already exists!" });
+      }
+
+      return res.status(500).json({ error: "Database error" });
     }
-  
-    // Call the stored procedure
-    const sql = "CALL insertLogin(?, ?, ?)";
-  pool.query(sql, [businessName, phoneNumber, password], (err, result) => {
-      if (err) {
-        console.error("Error executing stored procedure:", err);
-
-        if (err.code === "ER_DUP_ENTRY") {
-          return res.status(409).json({ error: "Phone number already exists!" });
-      }
-
-        return res.status(500).json({ error: "Database error" });
-      }
-      res.status(200).json({ message: "User registered successfully!" });
-    });
+    res.status(200).json({ message: "User registered successfully!" });
   });
+});
+
 
 
   app.post("/login", (req, res) => {
@@ -1838,4 +1839,5 @@ process.on("SIGTERM", () => {
 app.listen(port, () => {
     console.log(`Node.js HTTP server is running on port ${port}`);
 });
+
 
